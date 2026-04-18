@@ -45,6 +45,10 @@
             <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Unidades Stock</p>
             <p id="stat-total" class="text-2xl font-black mt-1">0</p>
         </div>
+        <div class="card p-4 bg-amber-50 border-amber-100">
+            <p class="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Agotados (0 uds)</p>
+            <p id="stat-low" class="text-2xl font-black mt-1 text-amber-700">0</p>
+        </div>
         <div class="card p-4">
             <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Inversión (Coste)</p>
             <p id="stat-investment" class="text-2xl font-black mt-1 text-slate-700">0€</p>
@@ -52,10 +56,6 @@
         <div class="card p-4 bg-green-50 border-green-100">
             <p class="text-[10px] text-green-600 font-bold uppercase tracking-wider">Beneficio (P.V - P.C)</p>
             <p id="stat-profit" class="text-2xl font-black mt-1 text-green-700">0€</p>
-        </div>
-        <div class="card p-4 bg-amber-50 border-amber-100">
-            <p class="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Agotados (0 uds)</p>
-            <p id="stat-low" class="text-2xl font-black mt-1 text-amber-700">0</p>
         </div>
     </div>
 
@@ -114,6 +114,26 @@
     let expanded = { brands: {}, cats: {}, models: {} };
     let isListView = false;
 
+    // --- ORDENACIÓN DE VARIANTES (COLOR Y TALLA) ---
+    const sizeOrder = {"XXS":1, "XS":2, "S":3, "M":4, "L":5, "XL":6, "XXL":7, "2XL":7, "3XL":8, "4XL":9, "5XL":10};
+    function sortStockKeys(stockObj) {
+        return Object.keys(stockObj || {}).sort((a, b) => {
+            let vA = stockObj[a], vB = stockObj[b];
+            let cA = (vA.color || '').toUpperCase(), cB = (vB.color || '').toUpperCase();
+            let sA = (vA.size || '').toUpperCase(), sB = (vB.size || '').toUpperCase();
+            
+            // Primero ordenar por Color
+            if (cA < cB) return -1;
+            if (cA > cB) return 1;
+            
+            // Luego ordenar por Talla (lógica de peso para tallas de letras, o numérico)
+            let wA = sizeOrder[sA] !== undefined ? sizeOrder[sA] : (!isNaN(parseInt(sA)) ? parseInt(sA) : 50);
+            let wB = sizeOrder[sB] !== undefined ? sizeOrder[sB] : (!isNaN(parseInt(sB)) ? parseInt(sB) : 50);
+            
+            return wA - wB;
+        });
+    }
+
     db.ref('/').on('value', snap => {
         appData = snap.val() || {};
         document.getElementById('loading').classList.add('hidden');
@@ -161,7 +181,11 @@
                     const c = b.categories[cid];
                     Object.keys(c.models || {}).forEach(mid => {
                         const m = c.models[mid];
-                        Object.keys(m.stock || {}).forEach(sid => {
+                        
+                        // Usamos la función de ordenar stock keys
+                        const orderedStockKeys = sortStockKeys(m.stock);
+                        
+                        orderedStockKeys.forEach(sid => {
                             const s = m.stock[sid];
                             const searchStr = `${b.name} ${c.name} ${m.name} ${m.code || ''} ${s.color} ${s.size}`.toLowerCase();
                             
@@ -212,7 +236,10 @@
                     let mHasMatches = mMatches;
                     let varHTML = '';
 
-                    Object.keys(m.stock || {}).forEach(sid => {
+                    // Usamos la función de ordenar stock keys
+                    const orderedStockKeys = sortStockKeys(m.stock);
+
+                    orderedStockKeys.forEach(sid => {
                         const s = m.stock[sid];
                         let sMatches = `${s.color} ${s.size}`.toLowerCase().includes(q);
                         
@@ -252,7 +279,8 @@
                                     <i class="fas fa-caret-${isModelOpen ? 'down' : 'right'} text-slate-400 text-xs w-3 text-center"></i>
                                     <span class="text-sm font-bold text-slate-800">${displayCode}${m.name}</span>
                                 </div>
-                                <div class="flex gap-3">
+                                <div class="flex gap-4">
+                                    <button onclick="event.stopPropagation(); showModal('variant', '${bid}', '${cid}', '${mid}')" class="text-slate-300 hover:text-green-600" title="Añadir Variante"><i class="fas fa-plus text-xs"></i></button>
                                     <button onclick="event.stopPropagation(); editModelModal('${bid}', '${cid}', '${mid}')" class="text-slate-300 hover:text-blue-600"><i class="fas fa-edit text-xs"></i></button>
                                     <button onclick="event.stopPropagation(); del('brands/${bid}/categories/${cid}/models/${mid}')" class="text-slate-300 hover:text-red-500"><i class="fas fa-trash text-xs"></i></button>
                                 </div>
@@ -272,7 +300,8 @@
                                 <i class="fas fa-chevron-${isCatOpen ? 'up' : 'right'} text-slate-400 text-[10px] w-3 text-center"></i>
                                 <span class="text-sm font-semibold text-slate-700">${c.name}</span>
                             </div>
-                            <div class="flex gap-3">
+                            <div class="flex gap-4">
+                                <button onclick="event.stopPropagation(); showModal('model', '${bid}', '${cid}')" class="text-slate-300 hover:text-green-600" title="Añadir Modelo"><i class="fas fa-plus text-xs"></i></button>
                                 <button onclick="event.stopPropagation(); editNameModal('brands/${bid}/categories/${cid}/name', '${c.name}', 'Renombrar Tipo')" class="text-slate-300 hover:text-blue-600"><i class="fas fa-edit text-xs"></i></button>
                                 <button onclick="event.stopPropagation(); del('brands/${bid}/categories/${cid}')" class="text-slate-300 hover:text-red-500"><i class="fas fa-trash text-xs"></i></button>
                             </div>
@@ -292,6 +321,7 @@
                             <h3 class="text-base font-bold text-slate-800">${b.name}</h3>
                         </div>
                         <div class="flex gap-4">
+                            <button onclick="event.stopPropagation(); showModal('garment', '${bid}')" class="text-slate-400 hover:text-green-600" title="Añadir Tipo de Prenda"><i class="fas fa-plus"></i></button>
                             <button onclick="event.stopPropagation(); editNameModal('brands/${bid}/name', '${b.name}', 'Renombrar Marca')" class="text-slate-400 hover:text-blue-600"><i class="fas fa-edit"></i></button>
                             <button onclick="event.stopPropagation(); del('brands/${bid}')" class="text-slate-400 hover:text-red-500"><i class="fas fa-trash"></i></button>
                         </div>
@@ -492,7 +522,7 @@
         document.getElementById('modal').classList.remove('hidden');
     }
 
-    function showModal(type) {
+    function showModal(type, preBid = null, preCid = null, preMid = null) {
         const body = document.getElementById('modal-body');
         const title = document.getElementById('modal-title');
         const btn = document.getElementById('modal-btn');
@@ -501,18 +531,27 @@
 
         if (type === 'brand') {
             title.innerText = 'Nueva Marca';
-            body.innerHTML = `<input id="f1" placeholder="Nombre (Ej: ROLY)" class="w-full border border-slate-300 p-3 rounded-xl font-bold uppercase text-slate-800">`;
+            body.innerHTML = `<input id="f1" placeholder="Nombre (Ej: ROLY)" class="w-full border border-slate-300 p-3 rounded-xl font-bold uppercase text-slate-800" autofocus>`;
             btn.onclick = () => { const v = document.getElementById('f1').value.trim(); if(v) db.ref('brands').push({name:v.toUpperCase()}); expanded.brands = {}; closeModal(); } 
         } else if (type === 'garment') {
             title.innerText = 'Nuevo Tipo de Prenda';
-            body.innerHTML = `${brandSelect()}<input id="f1" placeholder="Tipo (Ej: CAMISETA)" class="w-full border border-slate-300 p-3 rounded-xl font-bold uppercase text-slate-800 mt-3">`;
+            body.innerHTML = `${brandSelect()}<input id="f1" placeholder="Tipo (Ej: CAMISETA)" class="w-full border border-slate-300 p-3 rounded-xl font-bold uppercase text-slate-800 mt-3" autofocus>`;
+            
+            if(preBid) document.getElementById('sb').value = preBid;
+            
             btn.onclick = () => { const b = document.getElementById('sb').value; const v = document.getElementById('f1').value.trim(); if(b && v) { db.ref(`brands/${b}/categories`).push({name:v.toUpperCase()}); expanded.brands[b] = true; closeModal(); } }
         } else if (type === 'model') {
             title.innerText = 'Nuevo Modelo';
             body.innerHTML = `${brandSelect()}<div id="scat"></div>
-                <input id="f1" placeholder="Nombre (Ej: DOGMA)" class="w-full border border-slate-300 p-3 rounded-xl font-bold uppercase text-slate-800 mt-3">
+                <input id="f1" placeholder="Nombre (Ej: DOGMA)" class="w-full border border-slate-300 p-3 rounded-xl font-bold uppercase text-slate-800 mt-3" autofocus>
                 <input id="fcode" placeholder="Código (Ej: 6502) - Opcional" class="w-full border border-slate-300 p-3 rounded-xl font-bold uppercase text-slate-800 mt-3">`;
             document.getElementById('sb').onchange = (e) => loadCategories(e.target.value);
+            
+            if(preBid) {
+                document.getElementById('sb').value = preBid;
+                loadCategories(preBid, preCid);
+            }
+
             btn.onclick = () => {
                 const b = document.getElementById('sb').value; const c = document.getElementById('sc')?.value; 
                 const v = document.getElementById('f1').value.trim(); const code = document.getElementById('fcode').value.trim();
@@ -521,10 +560,16 @@
         } else if (type === 'variant') {
             title.innerText = 'Nueva Variante';
             body.innerHTML = `${brandSelect()}<div id="scat"></div><div id="smod"></div>
-                <div class="grid grid-cols-2 gap-3 mt-3"><input id="fc" placeholder="COLOR" class="border border-slate-300 p-3 rounded-xl font-bold uppercase text-sm text-slate-800"><input id="ft" placeholder="TALLA" class="border border-slate-300 p-3 rounded-xl font-bold uppercase text-sm text-slate-800"></div>
+                <div class="grid grid-cols-2 gap-3 mt-3"><input id="fc" placeholder="COLOR" class="border border-slate-300 p-3 rounded-xl font-bold uppercase text-sm text-slate-800" autofocus><input id="ft" placeholder="TALLA" class="border border-slate-300 p-3 rounded-xl font-bold uppercase text-sm text-slate-800"></div>
                 <div class="grid grid-cols-2 gap-3 mt-3"><input id="fpc" type="number" step="0.01" placeholder="P. Compra €" class="border border-slate-300 p-3 rounded-xl font-bold text-sm text-slate-800"><input id="fpv" type="number" step="0.01" placeholder="P. Venta €" class="border border-slate-300 p-3 rounded-xl font-bold text-sm text-slate-800"></div>
                 <input id="fq" type="number" placeholder="STOCK INICIAL" class="w-full border border-slate-300 p-3 rounded-xl font-bold mt-3 text-slate-800">`;
             document.getElementById('sb').onchange = (e) => loadCategories(e.target.value);
+            
+            if(preBid) {
+                document.getElementById('sb').value = preBid;
+                loadCategories(preBid, preCid, preMid);
+            }
+
             btn.onclick = () => {
                 const b = document.getElementById('sb').value, c = document.getElementById('sc')?.value, m = document.getElementById('sm')?.value;
                 const color = document.getElementById('fc').value.trim(), talla = document.getElementById('ft').value.trim(), stock = parseInt(document.getElementById('fq').value) || 0;
@@ -543,19 +588,28 @@
         return html + `</select>`;
     }
 
-    function loadCategories(bid) {
+    function loadCategories(bid, preCid = null, preMid = null) {
         const div = document.getElementById('scat'); if(!bid) { div.innerHTML = ''; document.getElementById('smod').innerHTML = ''; return; }
         let html = `<select id="sc" class="w-full border border-slate-300 p-3 rounded-xl font-bold text-sm text-slate-600 bg-white mt-3"><option value="">-- Selecciona Tipo --</option>`;
         Object.keys(appData.brands[bid].categories || {}).forEach(id => html += `<option value="${id}">${appData.brands[bid].categories[id].name}</option>`);
         div.innerHTML = html + `</select>`;
         document.getElementById('sc').onchange = (e) => loadModels(bid, e.target.value);
+
+        if(preCid) {
+            document.getElementById('sc').value = preCid;
+            loadModels(bid, preCid, preMid);
+        }
     }
 
-    function loadModels(bid, cid) {
+    function loadModels(bid, cid, preMid = null) {
         const div = document.getElementById('smod'); if(!cid) { div.innerHTML = ''; return; }
         let html = `<select id="sm" class="w-full border border-slate-300 p-3 rounded-xl font-bold text-sm text-slate-600 bg-white mt-3"><option value="">-- Selecciona Modelo --</option>`;
         Object.keys(appData.brands[bid].categories[cid].models || {}).forEach(id => html += `<option value="${id}">${appData.brands[bid].categories[cid].models[id].name}</option>`);
         div.innerHTML = html + `</select>`;
+
+        if(preMid) {
+            document.getElementById('sm').value = preMid;
+        }
     }
 
     function closeModal() { document.getElementById('modal').classList.add('hidden'); }
@@ -575,7 +629,7 @@
                         invest += (qty * pc);
                         profit += (qty * (pv - pc));
                         
-                        if(qty === 0) low++; // Ahora solo suma si el stock es exactamente 0
+                        if(qty === 0) low++;
                     });
                 });
             });
