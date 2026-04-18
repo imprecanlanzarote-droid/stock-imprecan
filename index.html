@@ -588,7 +588,15 @@
     }
 
     function loadCategories(bid, preCid = null, preMid = null) {
-        const div = document.getElementById('scat'); if(!bid) { div.innerHTML = ''; document.getElementById('smod').innerHTML = ''; return; }
+        const div = document.getElementById('scat'); 
+        if(!bid) { 
+            if(div) div.innerHTML = ''; 
+            const smod = document.getElementById('smod');
+            if(smod) smod.innerHTML = ''; 
+            return; 
+        }
+        if(!div) return;
+
         let html = `<select id="sc" class="w-full border border-slate-300 p-3 rounded-xl font-bold text-sm text-slate-600 bg-white mt-3"><option value="">-- Selecciona Tipo --</option>`;
         Object.keys(appData.brands[bid].categories || {}).forEach(id => html += `<option value="${id}">${appData.brands[bid].categories[id].name}</option>`);
         div.innerHTML = html + `</select>`;
@@ -601,7 +609,10 @@
     }
 
     function loadModels(bid, cid, preMid = null) {
-        const div = document.getElementById('smod'); if(!cid) { div.innerHTML = ''; return; }
+        const div = document.getElementById('smod'); 
+        if(!div) return; // PARACAÍDAS PARA QUE NO FALLE AL CREAR MODELO
+        if(!cid) { div.innerHTML = ''; return; }
+        
         let html = `<select id="sm" class="w-full border border-slate-300 p-3 rounded-xl font-bold text-sm text-slate-600 bg-white mt-3"><option value="">-- Selecciona Modelo --</option>`;
         Object.keys(appData.brands[bid].categories[cid].models || {}).forEach(id => html += `<option value="${id}">${appData.brands[bid].categories[cid].models[id].name}</option>`);
         div.innerHTML = html + `</select>`;
