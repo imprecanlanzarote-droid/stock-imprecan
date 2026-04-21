@@ -191,6 +191,8 @@
                         const m_pc = m.pc || 0;
                         const m_pv = m.pv || 0;
                         const m_ben = m.ben !== undefined ? m.ben : (m_pv - m_pc);
+                        // Calculamos el % de beneficio sobre el coste
+                        const m_pct = m_pc > 0 ? Math.round((m_ben / m_pc) * 100) : 0;
 
                         let modelRowsHtml = '';
                         let hasMatchingVariants = false;
@@ -210,11 +212,12 @@
                                 <td class="py-2.5 px-4 text-slate-500">${m_pc}€</td>
                                 <td class="py-2.5 px-4">
                                     <span class="font-bold text-slate-800">${m_pv}€</span>
-                                    <span class="text-[9px] text-green-600 block leading-none mt-0.5">Ben. ${m_ben.toFixed(2)}€</span>
+                                    <span class="text-[9px] text-green-600 block leading-none mt-0.5 font-semibold">Ben. ${m_ben.toFixed(2)}€ <span class="text-slate-400">(${m_pct}%)</span></span>
                                 </td>
                                 <td class="py-2.5 px-4 text-right">
                                     <button onclick="editVariantModal('${bid}','${cid}','${mid}','${sid}')" class="text-slate-400 hover:text-blue-600 mr-3" title="Editar Stock"><i class="fas fa-pencil-alt"></i></button>
-                                    <button onclick="addToOrderFromStock('${bid}','${cid}','${mid}','${sid}')" class="text-slate-400 hover:text-amber-500" title="Añadir a Por Pedir"><i class="fas fa-shopping-cart"></i></button>
+                                    <button onclick="addToOrderFromStock('${bid}','${cid}','${mid}','${sid}')" class="text-slate-400 hover:text-amber-500 mr-3" title="Añadir a Por Pedir"><i class="fas fa-shopping-cart"></i></button>
+                                    <button onclick="del('brands/${bid}/categories/${cid}/models/${mid}/stock/${sid}')" class="text-slate-400 hover:text-red-500" title="Eliminar Variante"><i class="fas fa-trash"></i></button>
                                 </td>
                             </tr>`;
                         });
@@ -231,7 +234,7 @@
                                             </div>
                                             <div class="flex items-center gap-3 text-[10px] font-bold text-slate-500">
                                                 <span class="bg-white px-2 py-1 rounded shadow-sm border border-slate-200"><i class="fas fa-tag text-slate-300 mr-1"></i>Compra: ${m_pc}€</span>
-                                                <span class="bg-green-50 text-green-700 px-2 py-1 rounded shadow-sm border border-green-100"><i class="fas fa-euro-sign text-green-400 mr-1"></i>Ben: ${m_ben.toFixed(2)}€</span>
+                                                <span class="bg-green-50 text-green-700 px-2 py-1 rounded shadow-sm border border-green-100"><i class="fas fa-euro-sign text-green-400 mr-1"></i>Ben: ${m_ben.toFixed(2)}€ (${m_pct}%)</span>
                                             </div>
                                         </div>
                                     </td>
@@ -277,6 +280,7 @@
                     const m_pc = m.pc || 0;
                     const m_pv = m.pv || 0;
                     const m_ben = m.ben !== undefined ? m.ben : (m_pv - m_pc);
+                    const m_pct = m_pc > 0 ? Math.round((m_ben / m_pc) * 100) : 0;
 
                     orderedStockKeys.forEach(sid => {
                         const s = m.stock[sid];
@@ -297,11 +301,12 @@
                                 <td class="py-3 px-4 text-slate-500">${m_pc}€</td>
                                 <td class="py-3 px-4">
                                     <span class="font-semibold text-slate-800">${m_pv}€</span>
-                                    <span class="text-[9px] text-green-600 block leading-none mt-0.5">Ben. ${m_ben.toFixed(2)}€</span>
+                                    <span class="text-[9px] text-green-600 block leading-none mt-0.5 font-semibold">Ben. ${m_ben.toFixed(2)}€ <span class="text-slate-400">(${m_pct}%)</span></span>
                                 </td>
                                 <td class="py-3 px-4 text-right">
                                     <button onclick="editVariantModal('${bid}','${cid}','${mid}','${sid}')" class="text-slate-400 hover:text-blue-600 mr-3" title="Editar Stock"><i class="fas fa-pencil-alt"></i></button>
-                                    <button onclick="addToOrderFromStock('${bid}','${cid}','${mid}','${sid}')" class="text-slate-400 hover:text-amber-500"><i class="fas fa-shopping-cart"></i></button>
+                                    <button onclick="addToOrderFromStock('${bid}','${cid}','${mid}','${sid}')" class="text-slate-400 hover:text-amber-500 mr-3" title="Añadir a Por Pedir"><i class="fas fa-shopping-cart"></i></button>
+                                    <button onclick="del('brands/${bid}/categories/${cid}/models/${mid}/stock/${sid}')" class="text-slate-400 hover:text-red-500" title="Eliminar Variante"><i class="fas fa-trash"></i></button>
                                 </td>
                             </tr>`;
                         }
@@ -316,7 +321,7 @@
                                 <div class="flex items-center gap-2">
                                     <i class="fas fa-caret-${isModelOpen ? 'down' : 'right'} text-slate-400 text-xs w-3 text-center"></i>
                                     <span class="text-sm font-bold text-slate-800">${displayCode}${m.name}</span>
-                                    <span class="hidden md:inline-block ml-3 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100">Beneficio: ${m_ben.toFixed(2)}€</span>
+                                    <span class="hidden md:inline-block ml-3 text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100">Beneficio: ${m_ben.toFixed(2)}€ (${m_pct}%)</span>
                                 </div>
                                 <div class="flex gap-4">
                                     <button onclick="event.stopPropagation(); showModal('variant', '${bid}', '${cid}', '${mid}')" class="text-slate-400 hover:text-green-600" title="Añadir Variante"><i class="fas fa-plus text-xs"></i></button>
@@ -641,7 +646,6 @@
                 const color = document.getElementById('fc').value.trim(), talla = document.getElementById('ft').value.trim(), stock = parseInt(document.getElementById('fq').value) || 0;
                 
                 if(b && c && m && color && talla) { 
-                    // Ya no guardamos precio aquí, solo qty, color y talla
                     db.ref(`brands/${b}/categories/${c}/models/${m}/stock`).push({color:color.toUpperCase(), size:talla.toUpperCase(), qty:stock});
                     expanded.brands[b] = true; expanded.cats[c] = true; expanded.models[m] = true; closeModal();
                 }
