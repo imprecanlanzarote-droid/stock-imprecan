@@ -187,11 +187,10 @@
                         const m = c.models[mid];
                         const orderedStockKeys = sortStockKeys(m.stock);
                         
-                        // Obtenemos los precios del MODELO (o 0 si aún no los tiene configurados)
+                        // Obtenemos los precios del MODELO
                         const m_pc = m.pc || 0;
                         const m_pv = m.pv || 0;
                         const m_ben = m.ben !== undefined ? m.ben : (m_pv - m_pc);
-                        // Calculamos el % de beneficio sobre el coste
                         const m_pct = m_pc > 0 ? Math.round((m_ben / m_pc) * 100) : 0;
 
                         let modelRowsHtml = '';
@@ -211,7 +210,7 @@
                                 <td class="py-2.5 px-4 text-center font-black text-sm ${s.qty === 0 ? 'text-red-500' : 'text-slate-800'}">${s.qty}</td>
                                 <td class="py-2.5 px-4 text-slate-500">${m_pc}€</td>
                                 <td class="py-2.5 px-4">
-                                    <span class="font-bold text-slate-800">${m_pv}€</span>
+                                    <span class="font-bold text-slate-800">${m_pv.toFixed(2)}€</span>
                                     <span class="text-[9px] text-green-600 block leading-none mt-0.5 font-semibold">Ben. ${m_ben.toFixed(2)}€ <span class="text-slate-400">(${m_pct}%)</span></span>
                                 </td>
                                 <td class="py-2.5 px-4 text-right">
@@ -300,7 +299,7 @@
                                 </td>
                                 <td class="py-3 px-4 text-slate-500">${m_pc}€</td>
                                 <td class="py-3 px-4">
-                                    <span class="font-semibold text-slate-800">${m_pv}€</span>
+                                    <span class="font-semibold text-slate-800">${m_pv.toFixed(2)}€</span>
                                     <span class="text-[9px] text-green-600 block leading-none mt-0.5 font-semibold">Ben. ${m_ben.toFixed(2)}€ <span class="text-slate-400">(${m_pct}%)</span></span>
                                 </td>
                                 <td class="py-3 px-4 text-right">
@@ -458,7 +457,7 @@
 
     function addToOrderFromStock(bid, cid, mid, sid) {
         const b = appData.brands[bid], m = b.categories[cid].models[mid], s = m.stock[sid];
-        const pc = m.pc || 0; // Usamos precio del modelo
+        const pc = m.pc || 0;
         document.getElementById('modal-title').innerText = 'Añadir a Por Pedir';
         document.getElementById('modal-body').innerHTML = `
             <p class="text-sm text-slate-600 mb-3">¿Cuántas unidades faltan de <b>${m.name} (${s.color}/${s.size})</b>?</p>
@@ -522,10 +521,10 @@
 
     function editModelModal(bid, cid, mid) {
         const m = appData.brands[bid].categories[cid].models[mid];
-        // Calculamos el beneficio actual si no existe el campo 'ben' de forma explícita
         const m_pc = m.pc || 0;
         const m_pv = m.pv || 0;
         const currentBen = m.ben !== undefined ? m.ben : (m_pv - m_pc);
+        const currentPct = m_pc > 0 ? Math.round((currentBen / m_pc) * 100) : 0;
 
         document.getElementById('modal-title').innerText = 'Editar Modelo y Precios';
         document.getElementById('modal-body').innerHTML = `
@@ -539,8 +538,8 @@
                 <div><label class="text-xs font-bold text-slate-500 mb-1 block">Coste Compra (€)</label>
                 <input id="em-pc" type="number" step="0.01" class="w-full border border-slate-300 p-3 rounded-xl font-bold text-slate-800" value="${m_pc}"></div>
                 
-                <div><label class="text-xs font-bold text-slate-500 mb-1 block">Beneficio Fijo (€)</label>
-                <input id="em-ben" type="number" step="0.01" class="w-full border border-slate-300 p-3 rounded-xl font-bold text-slate-800" value="${currentBen}"></div>
+                <div><label class="text-xs font-bold text-slate-500 mb-1 block">Margen Beneficio (%)</label>
+                <input id="em-pct" type="number" step="0.1" class="w-full border border-slate-300 p-3 rounded-xl font-bold text-slate-800" value="${currentPct}"></div>
             </div>
             <p class="text-[10px] text-slate-400 mt-2"><i class="fas fa-info-circle mr-1"></i>Estos precios aplicarán a todas las tallas y colores de este modelo.</p>
         `;
@@ -549,8 +548,10 @@
             const name = document.getElementById('em-name').value.trim().toUpperCase();
             const code = document.getElementById('em-code').value.trim().toUpperCase();
             const pc = parseFloat(document.getElementById('em-pc').value) || 0;
-            const ben = parseFloat(document.getElementById('em-ben').value) || 0;
-            const pv = pc + ben; // Guardamos el Precio de Venta final
+            const pct = parseFloat(document.getElementById('em-pct').value) || 0;
+            
+            const ben = (pc * pct) / 100;
+            const pv = pc + ben;
 
             if(name) db.ref(`brands/${bid}/categories/${cid}/models/${mid}`).update({name, code, pc, ben, pv});
             closeModal();
@@ -601,7 +602,7 @@
                 <input id="fcode" placeholder="Código (Ej: 6502) - Opcional" class="w-full border border-slate-300 p-3 rounded-xl font-bold uppercase text-slate-800 mt-3">
                 <div class="grid grid-cols-2 gap-3 border-t border-slate-200 pt-3 mt-3">
                     <input id="fpc" type="number" step="0.01" placeholder="Coste Compra €" class="border border-slate-300 p-3 rounded-xl font-bold text-sm text-slate-800">
-                    <input id="fben" type="number" step="0.01" placeholder="Beneficio Fijo €" class="border border-slate-300 p-3 rounded-xl font-bold text-sm text-slate-800">
+                    <input id="fpct" type="number" step="0.1" placeholder="Margen Beneficio %" class="border border-slate-300 p-3 rounded-xl font-bold text-sm text-slate-800">
                 </div>
                 <p class="text-[10px] text-slate-400 mt-2"><i class="fas fa-info-circle mr-1"></i>Indica el precio del modelo base. Luego añadirás colores y tallas.</p>
                 `;
@@ -616,7 +617,9 @@
                 const b = document.getElementById('sb').value; const c = document.getElementById('sc')?.value; 
                 const v = document.getElementById('f1').value.trim(); const code = document.getElementById('fcode').value.trim();
                 const pc = parseFloat(document.getElementById('fpc').value) || 0;
-                const ben = parseFloat(document.getElementById('fben').value) || 0;
+                const pct = parseFloat(document.getElementById('fpct').value) || 0;
+                
+                const ben = (pc * pct) / 100;
                 const pv = pc + ben;
 
                 if(b && c && v) { 
@@ -702,7 +705,6 @@
         Object.values(appData.brands || {}).forEach(b => {
             Object.values(b.categories || {}).forEach(c => {
                 Object.values(c.models || {}).forEach(m => {
-                    // Precio tomado a nivel de Modelo
                     const m_pc = m.pc || 0;
                     const m_pv = m.pv || 0;
 
