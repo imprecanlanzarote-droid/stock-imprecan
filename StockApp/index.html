@@ -8,6 +8,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
@@ -28,7 +30,9 @@
         .size-chip-existing { background: #f1f5f9; border-color: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
         .transition-transform { transition: transform 0.2s ease; }
         .print-only { display: none; }
-        .stock-list-group { break-inside: avoid-page; }
+        .print-cell { display: none; }
+        .stock-list-table thead { background: #f8fafc; }
+        .stock-list-table .model-divider { background: #e2e8f0; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 
         @media print {
             @page { size: A4 landscape; margin: 10mm; }
@@ -36,14 +40,16 @@
             #app-shell { max-width: none !important; padding: 0 !important; }
             #app-header, #dashboard-stats, #main-tabs, #toast, #modal, .no-print { display: none !important; }
             .print-only { display: block !important; }
+            .print-cell { display: table-cell !important; }
             #content-area { display: block !important; }
             #stock-list-summary { margin-bottom: 8mm !important; }
-            #stock-list-summary > div { border: 1px solid #cbd5e1 !important; box-shadow: none !important; padding: 3mm !important; }
-            .stock-list-group { border: 1px solid #94a3b8 !important; border-radius: 0 !important; box-shadow: none !important; margin-bottom: 5mm !important; }
-            .stock-list-group header { background: #f1f5f9 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .stock-list-group table { font-size: 8.5pt !important; }
-            .stock-list-group th, .stock-list-group td { padding: 1.8mm 2.5mm !important; }
-            .stock-list-group tr { break-inside: avoid; }
+            #stock-list-summary { border: 1px solid #cbd5e1 !important; box-shadow: none !important; border-radius: 0 !important; }
+            #stock-list-summary > div { padding: 3mm !important; }
+            .stock-table-card { border: 1px solid #94a3b8 !important; border-radius: 0 !important; box-shadow: none !important; }
+            .stock-list-table { font-size: 8.5pt !important; }
+            .stock-list-table thead { display: table-header-group; }
+            .stock-list-table th, .stock-list-table td { padding: 1.8mm 2.5mm !important; }
+            .stock-list-table tr { break-inside: avoid; }
         }
     </style>
 </head>
@@ -498,7 +504,7 @@
         return {
             all: 'Todo el catálogo',
             available: 'Solo con stock',
-            low: 'Bajo stock (0–2)',
+            low: 'Bajo stock (0-2)',
             empty: 'Sin stock'
         }[stockListStatus] || 'Todo el catálogo';
     }
@@ -521,8 +527,8 @@
                         <p class="text-xs text-slate-500 mt-1">Busca, filtra y descarga exactamente las referencias que necesites.</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="downloadStockCSV()" class="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700">
-                            <i class="fas fa-file-csv mr-2"></i>Descargar CSV
+                        <button onclick="downloadStockPDF()" class="rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700">
+                            <i class="fas fa-file-pdf mr-2"></i>Descargar PDF
                         </button>
                         <button onclick="printStockList()" class="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800">
                             <i class="fas fa-print mr-2"></i>Imprimir
@@ -537,7 +543,7 @@
                     <select id="stock-list-status" onchange="stockListStatus = this.value; refreshStockList()" class="field !font-semibold text-sm text-slate-600">
                         <option value="all" ${stockListStatus === 'all' ? 'selected' : ''}>Todo el catálogo</option>
                         <option value="available" ${stockListStatus === 'available' ? 'selected' : ''}>Solo con stock</option>
-                        <option value="low" ${stockListStatus === 'low' ? 'selected' : ''}>Bajo stock (0–2)</option>
+                        <option value="low" ${stockListStatus === 'low' ? 'selected' : ''}>Bajo stock (0-2)</option>
                         <option value="empty" ${stockListStatus === 'empty' ? 'selected' : ''}>Sin stock</option>
                     </select>
                 </div>
@@ -556,8 +562,8 @@
                 </div>
             </div>
 
-            <div id="stock-list-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
-            <div id="stock-list-results" class="space-y-4"></div>`;
+            <div id="stock-list-summary" class="card grid grid-cols-2 md:grid-cols-4 overflow-hidden divide-x divide-y md:divide-y-0 divide-slate-100"></div>
+            <div id="stock-list-results"></div>`;
         refreshStockList();
     }
 
@@ -573,30 +579,40 @@
         if (!summary || !results) return;
 
         summary.innerHTML = `
-            <div class="card p-4">
+            <div class="p-3 md:p-4">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Referencias</p>
                 <p class="text-xl font-black mt-1">${references}</p>
             </div>
-            <div class="card p-4">
+            <div class="p-3 md:p-4">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Unidades</p>
                 <p class="text-xl font-black mt-1">${units}</p>
             </div>
-            <div class="card p-4">
+            <div class="p-3 md:p-4">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Valor coste</p>
                 <p class="text-xl font-black mt-1 text-slate-700">${investment.toFixed(2)}€</p>
             </div>
-            <div class="card p-4 ${profit >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}">
+            <div class="p-3 md:p-4 ${profit >= 0 ? 'bg-green-50' : 'bg-red-50'}">
                 <p class="text-[10px] font-bold uppercase tracking-wider ${profit >= 0 ? 'text-green-600' : 'text-red-600'}">Beneficio estimado</p>
                 <p class="text-xl font-black mt-1 ${profit >= 0 ? 'text-green-700' : 'text-red-700'}">${profit.toFixed(2)}€</p>
             </div>`;
-        results.innerHTML = buildStockListGroups(rows);
+        results.innerHTML = buildStockListTable(rows);
         if (printFilter) {
             const queryLabel = stockListQuery.trim() ? ` · Búsqueda: “${stockListQuery.trim()}”` : '';
             printFilter.innerText = `${stockListStatusLabel()}${queryLabel}`;
         }
     }
 
-    function buildStockListGroups(rows) {
+    function groupStockListRows(rows) {
+        const groups = new Map();
+        rows.forEach(row => {
+            const key = `${row.bid}/${row.cid}/${row.mid}`;
+            if (!groups.has(key)) groups.set(key, { ...row, variants: [] });
+            groups.get(key).variants.push(row);
+        });
+        return Array.from(groups.values());
+    }
+
+    function buildStockListTable(rows) {
         if (!rows.length) {
             return `<div class="card p-12 text-center border-dashed">
                 <i class="fas fa-search text-2xl text-slate-300 mb-3"></i>
@@ -604,18 +620,12 @@
             </div>`;
         }
 
-        const groups = new Map();
-        rows.forEach(row => {
-            const key = `${row.bid}/${row.cid}/${row.mid}`;
-            if (!groups.has(key)) groups.set(key, { ...row, variants: [] });
-            groups.get(key).variants.push(row);
-        });
-
-        return Array.from(groups.values()).map(group => {
+        const body = groupStockListRows(rows).map(group => {
             const groupUnits = group.variants.reduce((sum, row) => sum + row.qty, 0);
             const groupColors = new Set(group.variants.map(row => row.color)).size;
             const variantRows = group.variants.map(row => `
                 <tr class="hover:bg-slate-50/70">
+                    <td class="print-cell py-3 px-4 font-bold text-slate-600">${escapeHtml(row.model)}</td>
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-2">
                             <span class="h-3.5 w-3.5 shrink-0 rounded-full border border-slate-300" style="background:${getColorHex(row.color)}"></span>
@@ -632,64 +642,157 @@
                     <td class="py-3 px-4 text-right font-semibold ${row.profit >= 0 ? 'text-green-600' : 'text-red-600'}">${row.profit.toFixed(2)}€</td>
                 </tr>`).join('');
 
-            return `<section class="stock-list-group card overflow-hidden">
-                <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-slate-50 border-b border-slate-200 px-4 py-3">
-                    <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${escapeHtml(group.brand)} · ${escapeHtml(group.category)}</p>
-                        <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">${escapeHtml(group.model)}</h3>
+            return `<tr class="model-divider">
+                <td colspan="8" class="px-4 py-2.5">
+                    <div class="flex items-center justify-between gap-4">
+                        <p class="text-xs font-extrabold text-slate-800">
+                            <span class="text-slate-500">${escapeHtml(group.brand)}</span>
+                            <span class="mx-1.5 text-slate-400">/</span>
+                            <span class="text-slate-500">${escapeHtml(group.category)}</span>
+                            <span class="mx-1.5 text-slate-400">/</span>
+                            ${escapeHtml(group.model)}
+                        </p>
+                        <p class="text-[9px] font-bold uppercase tracking-wide text-slate-500">${groupColors} colores · ${group.variants.length} tallas · ${groupUnits} uds.</p>
                     </div>
-                    <p class="text-[10px] font-bold text-slate-500">${groupColors} colores · ${group.variants.length} tallas · ${groupUnits} uds.</p>
-                </header>
-                <div class="overflow-x-auto">
-                    <table class="w-full min-w-[720px] text-left text-xs whitespace-nowrap">
-                        <thead class="bg-white text-[9px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                            <tr>
-                                <th class="py-2.5 px-4">Color</th>
-                                <th class="py-2.5 px-4">Talla</th>
-                                <th class="py-2.5 px-4 text-center">Stock</th>
-                                <th class="py-2.5 px-4 text-right">Compra</th>
-                                <th class="py-2.5 px-4 text-right">Venta</th>
-                                <th class="py-2.5 px-4 text-right">Valor coste</th>
-                                <th class="py-2.5 px-4 text-right">Beneficio</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">${variantRows}</tbody>
-                    </table>
-                </div>
-            </section>`;
+                </td>
+            </tr>${variantRows}`;
         }).join('');
+
+        return `<div class="stock-table-card card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="stock-list-table w-full min-w-[720px] text-left text-xs whitespace-nowrap">
+                    <thead class="text-[9px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                        <tr>
+                            <th class="print-cell py-2.5 px-4">Modelo</th>
+                            <th class="py-2.5 px-4">Color</th>
+                            <th class="py-2.5 px-4">Talla</th>
+                            <th class="py-2.5 px-4 text-center">Stock</th>
+                            <th class="py-2.5 px-4 text-right">Compra</th>
+                            <th class="py-2.5 px-4 text-right">Venta</th>
+                            <th class="py-2.5 px-4 text-right">Valor coste</th>
+                            <th class="py-2.5 px-4 text-right">Beneficio</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">${body}</tbody>
+                </table>
+            </div>
+        </div>`;
     }
 
-    function csvCell(value) {
-        return `"${String(value ?? '').replace(/"/g, '""')}"`;
-    }
-
-    function csvNumber(value) {
-        return Number(value || 0).toFixed(2).replace('.', ',');
-    }
-
-    function downloadStockCSV() {
+    function downloadStockPDF() {
         const rows = getFilteredStockListRows();
         if (!rows.length) return showToast('No hay referencias para descargar.', 'error');
-        const headers = [
-            'Marca', 'Tipo', 'Modelo', 'Color', 'Talla', 'Stock',
-            'Precio compra', 'Precio venta', 'Valor coste', 'Beneficio estimado'
-        ];
-        const lines = rows.map(row => [
-            row.brand, row.category, row.model, row.color, row.size, row.qty,
-            csvNumber(row.pc), csvNumber(row.pv), csvNumber(row.investment), csvNumber(row.profit)
-        ].map(csvCell).join(';'));
-        const csv = '\uFEFF' + [headers.map(csvCell).join(';'), ...lines].join('\r\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `imprecan-stock-${new Date().toISOString().slice(0, 10)}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
-        showToast(`${rows.length} referencias descargadas.`);
+        const JsPDF = window.jspdf?.jsPDF;
+        if (!JsPDF) return showToast('No se pudo cargar el generador de PDF. Revisa la conexión.', 'error');
+
+        const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        if (typeof doc.autoTable !== 'function') {
+            return showToast('No se pudo preparar la tabla del PDF. Recarga la página.', 'error');
+        }
+
+        const units = rows.reduce((sum, row) => sum + row.qty, 0);
+        const investment = rows.reduce((sum, row) => sum + row.investment, 0);
+        const profit = rows.reduce((sum, row) => sum + row.profit, 0);
+        const pdfBody = [];
+
+        groupStockListRows(rows).forEach(group => {
+            const groupUnits = group.variants.reduce((sum, row) => sum + row.qty, 0);
+            pdfBody.push([{
+                content: `${group.brand} / ${group.category} / ${group.model}  -  ${groupUnits} uds.`,
+                colSpan: 8,
+                styles: {
+                    fillColor: [226, 232, 240],
+                    textColor: [30, 41, 59],
+                    fontStyle: 'bold',
+                    cellPadding: 2.1
+                }
+            }]);
+            group.variants.forEach(row => {
+                pdfBody.push([
+                    row.model,
+                    row.color,
+                    row.size,
+                    String(row.qty),
+                    `${row.pc.toFixed(2)} EUR`,
+                    `${row.pv.toFixed(2)} EUR`,
+                    `${row.investment.toFixed(2)} EUR`,
+                    `${row.profit.toFixed(2)} EUR`
+                ]);
+            });
+        });
+
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(17);
+        doc.text('Listado de stock', 12, 13);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`ImpreCan Business  |  ${formatLongDate()}  |  ${stockListStatusLabel()}`, 12, 18);
+
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(12, 21, 273, 10, 2, 2, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(51, 65, 85);
+        doc.text(`Referencias: ${rows.length}`, 17, 27.2);
+        doc.text(`Unidades: ${units}`, 75, 27.2);
+        doc.text(`Valor coste: ${investment.toFixed(2)} EUR`, 126, 27.2);
+        doc.text(`Beneficio estimado: ${profit.toFixed(2)} EUR`, 209, 27.2);
+
+        doc.autoTable({
+            startY: 34,
+            head: [['Modelo', 'Color', 'Talla', 'Stock', 'Compra', 'Venta', 'Valor coste', 'Beneficio']],
+            body: pdfBody,
+            theme: 'grid',
+            margin: { left: 12, right: 12, bottom: 12 },
+            styles: {
+                font: 'helvetica',
+                fontSize: 7.5,
+                textColor: [51, 65, 85],
+                lineColor: [226, 232, 240],
+                lineWidth: 0.15,
+                cellPadding: 1.8,
+                valign: 'middle'
+            },
+            headStyles: {
+                fillColor: [15, 23, 42],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                halign: 'left'
+            },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            columnStyles: {
+                0: { cellWidth: 45, fontStyle: 'bold' },
+                1: { cellWidth: 43 },
+                2: { cellWidth: 20 },
+                3: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+                4: { cellWidth: 32, halign: 'right' },
+                5: { cellWidth: 32, halign: 'right' },
+                6: { cellWidth: 37, halign: 'right' },
+                7: { cellWidth: 37, halign: 'right' }
+            },
+            didParseCell(data) {
+                if (data.section === 'body' && data.column.index === 3) {
+                    const value = Number(data.cell.raw);
+                    if (Number.isFinite(value) && value <= 2) {
+                        data.cell.styles.textColor = [220, 38, 38];
+                    }
+                }
+            }
+        });
+
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let page = 1; page <= pageCount; page++) {
+            doc.setPage(page);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(148, 163, 184);
+            doc.text(`Página ${page} de ${pageCount}`, 285, 202, { align: 'right' });
+        }
+
+        doc.save(`imprecan-stock-${new Date().toISOString().slice(0, 10)}.pdf`);
+        showToast(`${rows.length} referencias preparadas en PDF.`);
     }
 
     function printStockList() {
